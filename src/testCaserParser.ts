@@ -9,14 +9,14 @@ const log = getLogger("Parser");
 export interface TestCase {
   source: string;
   componentName: string;
-  moduleName: string;
+  functionalArea: string;
   feature: string;
   testDescription: string;
   unitTestCoverage: string;
-  manualTestingResults: string;
-  ableToReplicate: boolean;
+  initialResults: string;
+  ableToReplicate: string;
   notes: string;
-  needsDocumentation: boolean;
+  needsDocumentation: string;
   jiraReferences: string[];
   slackThreads: string[];
 }
@@ -28,7 +28,7 @@ interface ManualTestFile {
 
 export function createTestCase(partialTestCase: Partial<TestCase>): TestCase {
   // Ensure required properties are present
-  const requiredProps: (keyof TestCase)[] = ['componentName', 'moduleName', 'feature', 'testDescription'];
+  const requiredProps: (keyof TestCase)[] = ['componentName', 'functionalArea', 'feature', 'testDescription'];
   for (const prop of requiredProps) {
     if (typeof partialTestCase[prop] == "undefined") {
       throw new Error(`Property ${prop} is required and cannot be undefined.`);
@@ -39,14 +39,14 @@ export function createTestCase(partialTestCase: Partial<TestCase>): TestCase {
   return {
     source: partialTestCase.source || 'Unknown Filename',
     componentName: partialTestCase.componentName!,
-    moduleName: partialTestCase.moduleName!,
+    functionalArea: partialTestCase.functionalArea!,
     feature: partialTestCase.feature!,
     testDescription: partialTestCase.testDescription!,
-    unitTestCoverage: partialTestCase.unitTestCoverage || '0%',
-    manualTestingResults: partialTestCase.manualTestingResults || 'Not Tested',
-    ableToReplicate: partialTestCase.ableToReplicate ?? false,
-    notes: partialTestCase.notes || 'No Notes',
-    needsDocumentation: partialTestCase.needsDocumentation ?? false,
+    unitTestCoverage: partialTestCase.unitTestCoverage || '',
+    initialResults: partialTestCase.initialResults || 'Not Tested',
+    ableToReplicate: partialTestCase.ableToReplicate ?? '',
+    notes: partialTestCase.notes || '',
+    needsDocumentation: partialTestCase.needsDocumentation ?? '',
     jiraReferences: partialTestCase.jiraReferences || [],
     slackThreads: partialTestCase.slackThreads || []
   };
@@ -122,24 +122,29 @@ export async function parseTestCasesFromComments(
     // Find all matches in the file.
     const matches = content.match(testCaseRegex);
 
-    if (matches) {
-      matches.forEach((match) => {
-        // Remove comment characters and @Saffron header.
-        const yamlChunk = match
-          .replace(/@Saffron/, "")
-          .replace(/\s*\*\s*/g, "\n")
-          .replace(/^\s?\*?\/$/gm, "")
-          .trim();
+    let match;
+    while ((match = testCaseRegex.exec(content)) !== null) {
+      // Remove comment characters and @Saffron header.
+      const yamlChunk = match[0]
+        .replace(/@Saffron/, "")
+        .replace(/\s*\*\s*/g, "\n")
+        .replace(/^\s?\*?\/$/gm, "")
+        .trim();
 
-        // Parse the YAML chunk into a JSON object.
-        const testCaseData: Partial<TestCase> = yaml.parse(yamlChunk);
+      // Parse the YAML chunk into a JSON object.
+      const testCaseData: Partial<TestCase> = yaml.parse(yamlChunk);
 
-        // Add filename to the test case data.
-        testCaseData.source = path.resolve(filename).replace(baseDirectory,projectName);
+      const lineNumber = (content.substring(0, match.index).match(/\r?\n/g) || []).length + 1;
 
-        // Push the test case data to the array.
-        testCases.push(createTestCase(testCaseData));
-      });
+      // Add filename and offset to the test case data.
+      testCaseData.source = path.resolve(filename).replace(baseDirectory, projectName)+ "@" + lineNumber;
+
+
+       // Push the test case data to the array.
+      testCases.push(createTestCase({
+        componentName: projectName,
+        ...testCaseData
+      }));
     }
   });
 

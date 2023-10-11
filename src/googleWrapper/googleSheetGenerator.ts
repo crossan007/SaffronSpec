@@ -1,7 +1,6 @@
-import { google } from "googleapis";
 import { ensureSheetExists, sheets } from ".";
 import { TestCase } from "../testCaserParser"; // Import your TestCase interface
-
+import { capitalCase } from "change-case-all";
 export interface SheetGeneratorOptions {
   spreadsheetId: string;
   sheetName: string;
@@ -11,48 +10,45 @@ export async function generateTestCasesSheet(
   testCases: TestCase[],
   options: SheetGeneratorOptions
 ): Promise<void> {
-
-  const sheetDetails = await ensureSheetExists(options.spreadsheetId, options.sheetName)
-  await setColumnWidths(options.spreadsheetId, sheetDetails.sheetId)
+  const sheetDetails = await ensureSheetExists(
+    options.spreadsheetId,
+    options.sheetName
+  );
+ 
   // Extract headers from the TestCase interface
   const headers = Object.keys(testCases[0]);
+
+  await formatTestSheet(options.spreadsheetId, sheetDetails.sheetId, headers.length);
 
   // Prepare the data for the sheet
   const values = testCases.map((testCase) =>
     headers.map((header) => {
-      const caseProperty = testCase[header as keyof TestCase]
-      if (Array.isArray(caseProperty)){ 
-        return caseProperty.join(";")
+      const propertyValue = testCase[header as keyof TestCase];
+      if (Array.isArray(propertyValue)) {
+        return propertyValue.join(";");
       }
-      return caseProperty
+      return propertyValue;
     })
   );
 
   // Insert headers as the first row
-  values.unshift(headers);
-  await sheets.spreadsheets.values.update({ 
+  values.unshift(headers.map((h) => capitalCase(h)));
+  await sheets.spreadsheets.values.update({
     spreadsheetId: options.spreadsheetId,
     range: `${options.sheetName}!A1:Z1000`,
     valueInputOption: "RAW",
     requestBody: {
       majorDimension: "ROWS",
-      values: values
-    }
+      values: values,
+    },
   });
-
 }
 
-
-
-async function setColumnWidths(
+async function formatTestSheet(
   spreadsheetId: string,
-  sheetId: number, // You get this ID from sheet propertie
+  sheetId: number,
+  headerColumns: number
 ): Promise<void> {
-
-  const startIndex = 0;
-  const endIndex = 10;
-  const pixelSize = 200;
-
   // Construct and send a batchUpdate request to set column width
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -62,19 +58,73 @@ async function setColumnWidths(
           updateDimensionProperties: {
             range: {
               sheetId,
-              dimension: 'COLUMNS',
-              startIndex,
-              endIndex
+              dimension: "COLUMNS",
+              startIndex: 0,
+              endIndex: 1,
             },
             properties: {
-              pixelSize
+              hiddenByUser: true,
             },
-            fields: 'pixelSize'
-          }
-        }
-      ]
-    }
+            fields: "hiddenByUser",
+          },
+        },
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: "COLUMNS",
+              startIndex: 1,
+              endIndex: headerColumns,
+            },
+            properties: {
+              pixelSize: 200,
+            },
+            fields: "pixelSize",
+          },
+        },
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: "COLUMNS",
+              startIndex: 4,
+              endIndex: 5,
+            },
+            properties: {
+              pixelSize: 300,
+            },
+            fields: "pixelSize",
+          },
+        },
+        {
+          repeatCell: {
+            range: {
+              sheetId, // Replace this with the sheetId if you have it
+              startRowIndex: 0,
+              endRowIndex: 100, // Replace with the number of rows you want to set the format
+              startColumnIndex: 0,
+              endColumnIndex: 100, // Replace with the number of columns you want to set the format
+            },
+            cell: {
+              userEnteredFormat: {
+                wrapStrategy: "WRAP", // Other possible values are "OVERFLOW_CELL" and "CLIP"
+              },
+            },
+            fields: "userEnteredFormat.wrapStrategy",
+          },
+        },
+        {
+          setBasicFilter: {
+            filter: {
+              range: {
+                sheetId,
+                startRowIndex: 0,
+                endRowIndex: 1,
+              },
+            },
+          },
+        },
+      ],
+    },
   });
-
-  console.log(`Width of columns ${startIndex} to ${endIndex} set to ${pixelSize} pixels.`);
 }

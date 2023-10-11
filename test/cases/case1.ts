@@ -1,7 +1,7 @@
 /**
  * @Saffron
  * componentName: MyComponent
- * moduleName: MyModule
+ * functionalArea: MyModule
  * feature: User Login
  * testDescription: Ensure user can login with valid credentials.
  * unitTestCoverage: 80%

@@ -42,7 +42,7 @@ Example:
 /**
  * @Saffron
  * componentName: ExampleComponent
- * moduleName: ExampleModule
+ * functionalArea: ExampleModule
  * ...
  */
 ```

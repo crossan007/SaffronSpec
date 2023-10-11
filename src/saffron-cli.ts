@@ -2,7 +2,7 @@
 
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { generateTestCasesSheet, parseTestCasesFromComments, parseTestCasesFromYAMLFiles, SheetGeneratorOptions, TestCase } from './';
+import { createTestCase, generateTestCasesSheet, parseTestCasesFromComments, parseTestCasesFromYAMLFiles, SheetGeneratorOptions, TestCase } from './';
 import fs from 'fs';
 import path from 'path';
 import { google } from "googleapis";
@@ -85,7 +85,7 @@ yargs(hideBin(process.argv))
         ]
         for (let related of saffronConfig.RelatedProjects) {
           if (related in sharedConfig) {
-            const relatedCases = sharedConfig[related] as TestCase[]
+            const relatedCases = (sharedConfig[related] as Partial<TestCase>[]).map((tc)=>createTestCase(tc))
             allTestCases = discoveredCases.concat(relatedCases);
           }
         }
