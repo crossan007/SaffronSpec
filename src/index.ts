@@ -1,2 +1,2 @@
-export * from "./googleSheetGenerator";
+export * from "./googleWrapper/googleSheetGenerator";
 export * from "./testCaserParser"

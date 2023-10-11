@@ -2,10 +2,26 @@
 
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { generateTestCasesSheet, parseTestCases, SheetGeneratorOptions, TestCase } from './';
+import { generateTestCasesSheet, parseTestCasesFromComments, parseTestCasesFromYAMLFiles, SheetGeneratorOptions, TestCase } from './';
 import fs from 'fs';
 import path from 'path';
 import { google } from "googleapis";
+import { getLogger } from 'loglevel';
+import { readFromSheet, setAuth, writeToSheet } from './googleWrapper';
+const log = getLogger("saffron")
+log.enableAll();
+
+export interface SaffronConfig {
+  SHEET_ID: string
+  SHEET_NAME: string
+  RelatedProjects: string[]
+}
+
+async function MergeDiscoveries(p: Promise<TestCase[]>[]): Promise<TestCase[]> {
+  const allTestCasesArrays = await Promise.all(p);
+  const mergedTestCases = ([] as TestCase[]).concat(...allTestCasesArrays);
+  return mergedTestCases;
+}
 
 yargs(hideBin(process.argv))
   .command(
@@ -21,30 +37,72 @@ yargs(hideBin(process.argv))
     },
     async (argv) => {
       try {
-        const saffronConfigPath = path.join(argv.basePath, ".saffron",'.saffronrc');
+        const saffronPath =  path.join(argv.basePath, ".saffron");
+        const saffronConfigPath = path.join(saffronPath,'.saffronrc');
         if (!fs.existsSync(saffronConfigPath)) {
           throw new Error('.saffronrc not found in the specified basePath');
         }
 
-        const saffronConfig = JSON.parse(fs.readFileSync(saffronConfigPath, 'utf8'));
+        const packageJSONPath = path.join(argv.basePath, "package.json");
+        if (!fs.existsSync(packageJSONPath)) {
+          throw new Error("package.json not found in the specified basePath");
+        }
 
-        const testCases = parseTestCases(argv.basePath);
-        console.log(testCases);
+        const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, "utf8"));
+        const saffronConfig = JSON.parse(fs.readFileSync(saffronConfigPath, 'utf8')) as SaffronConfig;
+        const allProjects = [
+          ...(saffronConfig.RelatedProjects),
+          `${packageJSON.name}@${packageJSON.version}`
+        ].sort()
+
+        setAuth(new google.auth.JWT({
+          keyFile: path.join(argv.basePath, ".saffron","sa.json"),
+          scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+        }));
+
+
+        const sharedConfig = await readFromSheet(saffronConfig.SHEET_ID);
+        log.info("Shared Config keys", Object.keys(sharedConfig));
+
+        const discoveredCases = await MergeDiscoveries([
+          parseTestCasesFromComments(path.join(argv.basePath,"src"), packageJSON.name),
+          parseTestCasesFromComments(path.join(argv.basePath,"test"), packageJSON.name),
+          parseTestCasesFromYAMLFiles(saffronPath, packageJSON.name)
+        ])
+
+        await writeToSheet(saffronConfig.SHEET_ID,{
+          ...sharedConfig,
+          [`${packageJSON.name}@${packageJSON.version}`]:discoveredCases
+        })
+
+        
+        
+        log.info(`Found ${discoveredCases.length} test cases`);
+
+      
+        let allTestCases = [
+          ...discoveredCases
+        ]
+        for (let related of saffronConfig.RelatedProjects) {
+          if (related in sharedConfig) {
+            const relatedCases = sharedConfig[related] as TestCase[]
+            allTestCases = discoveredCases.concat(relatedCases);
+          }
+        }
+
+        allTestCases.sort((a,b)=>a.source.localeCompare(b.source))
+
         
         // Use the .saffronrc config for auth and spreadsheetId
         const options: SheetGeneratorOptions = {
-          auth:  new google.auth.JWT({
-            keyFile: path.join(argv.basePath, ".saffron","sa.json"),
-            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-          }),
           spreadsheetId: saffronConfig.SHEET_ID,
-          sheetName: saffronConfig.SHEET_NAME
+          sheetName: allProjects.join(",")
         };
 
-        await generateTestCasesSheet(testCases, options);
-        console.log('Sheet generated successfully!');
+        await generateTestCasesSheet(allTestCases, options);
+        log.info('Sheet generated successfully!');
       } catch (error) {
-        console.error('Error generating sheet:', error);
+        log.error('Error generating sheet:', error);
       }
     }
   )
