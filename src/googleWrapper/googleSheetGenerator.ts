@@ -118,12 +118,44 @@ async function formatTestSheet(
             filter: {
               range: {
                 sheetId,
-                startRowIndex: 0,
-                endRowIndex: 1,
+                startRowIndex: 0
               },
+              sortSpecs: [
+                {
+                  dimensionIndex: 0,
+                  sortOrder: "ASCENDING"
+                }
+              ]
             },
           },
         },
+        {
+          "setDataValidation": {
+            "range": {
+              sheetId,
+              "startRowIndex": 1,
+              "endRowIndex": 1000, 
+              "startColumnIndex": 6,
+              "endColumnIndex": 7
+            },
+            "rule": {
+              "condition": {
+                "type": "ONE_OF_LIST",
+                "values": [
+                  { "userEnteredValue": "Todo" },
+                  { "userEnteredValue": "Skipped" },
+                  { "userEnteredValue": "Pass" },
+                  { "userEnteredValue": "Fail - Blocker" },
+                  { "userEnteredValue": "Fail - Non Blocker" },
+                  { "userEnteredValue": "Change Request" }
+                ]
+              },
+              "inputMessage": "Choose an option from the dropdown.",
+              "strict": true,
+              "showCustomUi": true 
+            }
+          }
+        }
       ],
     },
   });

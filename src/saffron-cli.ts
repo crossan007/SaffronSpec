@@ -23,6 +23,23 @@ async function MergeDiscoveries(p: Promise<TestCase[]>[]): Promise<TestCase[]> {
   return mergedTestCases;
 }
 
+const { execSync } = require('child_process');
+
+function getGitHead(folderPath: string) {
+    try {
+        // Execute git rev-parse command and return the result as a String.
+        return execSync('git rev-parse HEAD', {
+            cwd: folderPath, // set the working directory
+            encoding: 'utf-8' // encode output as a String
+        }).trim(); // trim to clean up any leading/trailing whitespace
+    } catch (error) {
+        console.error('Error getting git HEAD:', error);
+        return null;
+    }
+}
+
+
+
 yargs(hideBin(process.argv))
   .command(
     'run [basePath]',
@@ -47,7 +64,7 @@ yargs(hideBin(process.argv))
         if (!fs.existsSync(packageJSONPath)) {
           throw new Error("package.json not found in the specified basePath");
         }
-
+        const packageHead = getGitHead(argv.basePath).substring(0,8)
         const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, "utf8"));
         const saffronConfig = JSON.parse(fs.readFileSync(saffronConfigPath, 'utf8')) as SaffronConfig;
         const allProjects = [

@@ -43,7 +43,7 @@ export function createTestCase(partialTestCase: Partial<TestCase>): TestCase {
     feature: partialTestCase.feature!,
     testDescription: partialTestCase.testDescription!,
     unitTestCoverage: partialTestCase.unitTestCoverage || '',
-    initialResults: partialTestCase.initialResults || 'Not Tested',
+    initialResults: partialTestCase.initialResults || 'Todo',
     ableToReplicate: partialTestCase.ableToReplicate ?? '',
     notes: partialTestCase.notes || '',
     needsDocumentation: partialTestCase.needsDocumentation ?? '',
